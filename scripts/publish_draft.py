@@ -153,7 +153,7 @@ def record_published(data_dir, title, url, media_id):
         "publish_date": datetime.now().strftime("%Y-%m-%d"),
     })
     save_published_articles(data_dir, articles)
-    print(f"✓ 已记录到 published_articles.json (共 {len(articles)} 篇)")
+    print(f"[OK] 已记录到 published_articles.json (共 {len(articles)} 篇)")
     return articles
 
 
@@ -265,7 +265,11 @@ def load_knowledge_links(txt_path):
             line = line.strip()
             if not line or line.startswith('#'):
                 continue
-            parts = line.split('|', 1)
+            # 兼容半角 | 和全角 ｜ 两种分隔符
+            sep = '|'
+            if sep not in line:
+                sep = '\uff5c'  # 全角 ｜
+            parts = line.split(sep, 1)
             if len(parts) == 2:
                 title, url = parts[0].strip(), parts[1].strip()
                 if title and url:
@@ -273,18 +277,19 @@ def load_knowledge_links(txt_path):
     return articles
 
 
-def build_knowledge_extension_html(knowledge_file="", current_title="", max_count=8):
+def build_knowledge_extension_html(knowledge_file="", current_title="", max_count=8, style="tech-blue"):
     """从 txt 文件随机选5-8条文章链接，返回HTML块。"""
+    s = get_style(style)
     all_articles = load_knowledge_links(knowledge_file)
     if not all_articles:
-        print(f"⚠ 知识拓展: 链接文件为空或不存在，跳过")
+        print(f"[!] 知识拓展: 链接文件为空或不存在，跳过")
         return ""
 
     # 排除当前文章
     candidates = [a for a in all_articles
                   if not current_title or a.get("title", "") != current_title]
     if not candidates:
-        print("⚠ 知识拓展: 排除当前文章后无剩余条目")
+        print("[!] 知识拓展: 排除当前文章后无剩余条目")
         return ""
 
     # 随机选 5-8 篇
@@ -315,7 +320,7 @@ def build_knowledge_extension_html(knowledge_file="", current_title="", max_coun
         '点击标题查看相关文章</p>'
     )
     html = header + note + '<ul style="padding-left:1.2em;margin:8px 0;">' + ''.join(items) + '</ul>'
-    print(f"✓ 知识拓展: {len(candidates)} 条可用，随机选 {pick_count} 篇")
+    print(f"[OK] 知识拓展: {len(candidates)} 条可用，随机选 {pick_count} 篇")
     return html
 
 
@@ -593,12 +598,12 @@ def main():
 
     # 1. 获取 token
     token = get_access_token(appid, appsecret)
-    print("✓ access_token")
+    print("[OK] access_token")
 
     # 2. 上传封面
     cover_path = os.path.join(screenshot_dir, f"page_{cover_page:03d}.png")
     cover_media_id = upload_cover(token, cover_path)
-    print(f"✓ 封面 media_id: {cover_media_id}")
+    print(f"[OK] 封面 media_id: {cover_media_id}")
 
     # 3. 发布前质量检查（QC 清单）
     with open(article_md, encoding="utf-8") as f:
@@ -667,7 +672,7 @@ def main():
                 f"请在 article.md 中需要配图的位置插入占位符（如 [IMG_1: 图1说明]）"
             )
         else:
-            print(f"✓ 文章中已有 IMG 占位符: {sorted(set(int(x) for x in md_img_placeholders))}")
+            print(f"[OK] 文章中已有 IMG 占位符: {sorted(set(int(x) for x in md_img_placeholders))}")
 
     # 汇总 QC 结果
     if qc_errors:
@@ -675,13 +680,13 @@ def main():
         for i, e in enumerate(qc_errors, 1):
             print(f"  {i}. {e}")
         raise RuntimeError(f"发布前质量检查未通过（{len(qc_errors)} 项），请修复后重试")
-    print(f"✓ 质量检查全部通过（5/5）")
+    print(f"[OK] 质量检查全部通过（5/5）")
 
     # 4. 上传文章内嵌图
     img_urls = {}
     if image_pages:
         img_urls = upload_inline_images(token, screenshot_dir, image_pages)
-        print(f"✓ 内嵌图: {len(img_urls)} 张")
+        print(f"[OK] 内嵌图: {len(img_urls)} 张")
 
     # 5. 延伸阅读（可选）
     related_html = ""
@@ -692,7 +697,7 @@ def main():
             recent = get_recent_articles(local_articles, months=3)
             if recent:
                 related_html = build_related_reading_html(recent)
-                print(f"✓ 延伸阅读: 本地索引找到 {len(recent)} 篇（3月内）")
+                print(f"[OK] 延伸阅读: 本地索引找到 {len(recent)} 篇（3月内）")
 
         # 本地没有则从素材库拉
         if not related_html:
@@ -705,32 +710,32 @@ def main():
                 ]
                 if recent_mat:
                     related_html = build_related_reading_html(recent_mat)
-                    print(f"✓ 延伸阅读: 素材库找到 {len(recent_mat)} 篇（3月内）")
+                    print(f"[OK] 延伸阅读: 素材库找到 {len(recent_mat)} 篇（3月内）")
                 else:
-                    print("⚠ 延伸阅读: 3个月内无已发布文章，跳过")
+                    print("[!] 延伸阅读: 3个月内无已发布文章，跳过")
             except Exception as e:
-                print(f"⚠ 延伸阅读获取失败: {e}")
+                print(f"[!] 延伸阅读获取失败: {e}")
 
     # 6a. 知识拓展（从 txt 文件读取，随机选5-8篇）
     knowledge_file = cfg.get("knowledge_file", "")
     if not knowledge_file:
         knowledge_file = "E:/pdftowechat/knowledge_links.txt"
-    knowledge_html = build_knowledge_extension_html(knowledge_file, current_title=title)
+    knowledge_html = build_knowledge_extension_html(knowledge_file, current_title=title, style=style)
 
     # 7. 构建 HTML
     safe_title, content_html = build_html(article_md, img_urls, title, source_filename,
                                           style, related_html, knowledge_html)
-    print(f"✓ HTML 构建完成 ({len(content_html)} 字符)")
+    print(f"[OK] HTML 构建完成 ({len(content_html)} 字符)")
 
     # 8. 发布草稿
     media_id = post_draft(token, safe_title, content_html, cover_media_id, original_url)
-    print(f"✓ 草稿发布成功")
+    print(f"[OK] 草稿发布成功")
     print(f"  media_id: {media_id}")
 
     # 9. 验证
     verified_title = verify_draft(token, media_id)
     if verified_title:
-        print(f"✓ 标题验证: {verified_title}")
+        print(f"[OK] 标题验证: {verified_title}")
 
     # 10. 记录到发布索引
     publish_url = ""
