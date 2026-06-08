@@ -47,6 +47,7 @@ from datetime import datetime, timedelta
 
 
 FOOTER_GIF_URL = "http://mmbiz.qpic.cn/sz_mmbiz_gif/CWmCjpOpZNDoCOooOHwQbJcqmQ8ckZricJcK0w02StFxZ1HXCr7C9lQ6F4qiawAfKWn7w1q3Lr3H4GOIQtotkY7vtLWE4Dw7mM8cHVRmiccW6Y/0?from=appmsg"
+MINI_PROGRAM_APPID = "wx969daec54a7c02a2"
 """文章末尾底部 GIF（公众号引流），上传自 57072b650ce5b0943cf1dbb43800a06b.gif，靠左显示。"""
 
 
@@ -414,8 +415,30 @@ def get_style(s):
     """获取样式配置，不存在时返回默认。"""
     return STYLES.get(s, STYLES[DEFAULT_STYLE])
 
+def mini_program_html(s):
+    """生成双碳文库小程序卡片HTML"""
+    return (
+        '<div style="margin:24px 0;text-align:center;">'
+        f'<mp-miniprogram '
+        f'data-miniprogram-appid="{MINI_PROGRAM_APPID}" '
+        f'data-miniprogram-path="pages/index/index" '
+        f'data-props="{{}}" '
+        f'data-version="release" '
+        f'style="display:inline-block;max-width:100%;">'
+        f'<div style="border:1px solid #e8edf2;border-radius:8px;padding:16px 24px;'
+        f'background:#f8f9fa;cursor:pointer;">'
+        f'<p style="margin:0;font-size:15px;font-weight:700;'
+        f'color:{s["h2"].split("color:")[1].split(";")[0] if "color:" in s["h2"] else "#1a1a2e"};">'
+        f'双碳文库</p>'
+        f'<p style="margin:6px 0 0;font-size:13px;color:#7f8c8d;">'
+        f'点击进入小程序，获取更多专业资料</p>'
+        f'</div></mp-miniprogram></div>'
+    )
+
+
 def build_html(md_path, img_urls, title, source_filename, style="tech-blue",
-               related_html="", knowledge_html="", footer_gif=True):
+               related_html="", knowledge_html="", footer_gif=True,
+               show_mini_program=False):
     """将 Markdown 文章转换为微信公众号兼容的 HTML。"""
     s = get_style(style)
 
@@ -494,6 +517,10 @@ def build_html(md_path, img_urls, title, source_filename, style="tech-blue",
     if knowledge_html:
         html_parts.append(knowledge_html)
 
+    # 小程序卡片（双碳文库首页）
+    if show_mini_program:
+        html_parts.append(mini_program_html(s))
+    
     # 底部 GIF（公众号引流，靠左显示）
     if footer_gif:
         html_parts.append(
@@ -723,8 +750,10 @@ def main():
     knowledge_html = build_knowledge_extension_html(knowledge_file, current_title=title, style=style)
 
     # 7. 构建 HTML
+    mp_flag = cfg.get("show_mini_program", False)
     safe_title, content_html = build_html(article_md, img_urls, title, source_filename,
-                                          style, related_html, knowledge_html)
+                                          style, related_html, knowledge_html,
+                                          show_mini_program=mp_flag)
     print(f"[OK] HTML 构建完成 ({len(content_html)} 字符)")
 
     # 8. 发布草稿
